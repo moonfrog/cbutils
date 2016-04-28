@@ -67,26 +67,26 @@ func main() {
 	err := zootils.GetInstance().LoadConfig(&config, "config/redshiftProduction", func(string) {})
 
 	if err != nil {
-		log.Fatal("Couldn't load config. Err - %s", err)
+		log.Fatalf("Couldn't load config. Err - %s", err)
 
 	}
 
 	if config.DbName == "" || config.DbUser == "" || config.DbHost == "" ||
 		config.DbPassword == "" || config.DbPort == "" {
-		log.Fatal("Config error %v", config)
+		log.Fatalf("Config error %v", config)
 	}
 
 	var cbConfig CouchbaseConfig
 	err = zootils.GetInstance().LoadConfig(&cbConfig, "config/couchbase", func(string) {})
 
 	if err != nil {
-		log.Fatal("Couldn't load config. Err - %s", err)
+		log.Fatalf("Couldn't load config. Err - %s", err)
 
 	}
 
 	if cbConfig.Host == "" || cbConfig.Port == "" || cbConfig.QueryPort == "" ||
 		cbConfig.Bucket == "" {
-		log.Fatal("Config error %v", cbConfig)
+		log.Fatalf("Config error %v", cbConfig)
 	}
 
 	url := fmt.Sprintf("sslmode=require user=%v password=%v host=%v port=%v dbname=%v "+
@@ -99,12 +99,12 @@ func main() {
 
 	db, err := sql.Open("postgres", url)
 	if err != nil {
-		log.Fatal("Open db error %v", err)
+		log.Fatalf("Open db error %v", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		log.Fatal("Connection not established: url %v, Error %v", url, err)
+		log.Fatalf("Connection not established: url %v, Error %v", url, err)
 	}
 
 	startTime := time.Now()
@@ -112,7 +112,7 @@ func main() {
 	queryTime := time.Now().Sub(startTime).Seconds()
 
 	if err != nil {
-		log.Fatal("Failed to execute query %v", err)
+		log.Fatalf("Failed to execute query %v", err)
 	}
 
 	log.Printf("Query execution successfull. Tool %v seconds", queryTime)
@@ -120,7 +120,7 @@ func main() {
 		ts := &tableSize{}
 		err = rows.Scan(&ts.TableName, &ts.Size, &ts.Rows)
 		if err != nil {
-			log.Fatal(" Failed to Scan rows %v", err)
+			log.Fatalf(" Failed to Scan rows %v", err)
 		}
 
 		tsList = append(tsList, ts)
