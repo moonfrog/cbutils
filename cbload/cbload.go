@@ -217,8 +217,8 @@ func processFile(loaderChan chan string, doneChan chan bool) {
 
 	for ok {
 		select {
-		case fp, ok := <-loaderChan:
-			if ok {
+		case fp, valid := <-loaderChan:
+			if valid {
 				//queue work to the threadpool
 				wg.Add(1)
 				go func() {
@@ -229,12 +229,11 @@ func processFile(loaderChan chan string, doneChan chan bool) {
 					}
 					numFiles++
 				}()
+				numQueued++
+				log.Info("===== Queued %v", numQueued)
 
 			}
-
-			numQueued++
-			log.Info("===== Queued %v", numQueued)
-
+			ok = valid
 		}
 	}
 
