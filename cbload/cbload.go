@@ -45,12 +45,15 @@ var s3Bucket = flag.String("s3Bucket", "badger-dev-backups", "s3 bucket containi
 var cbBucket = flag.String("cbBucket", "m_table_economy_cash", "couchbase bucket")
 var tdiff = flag.Int("tdiff", 12, "time window")
 var basedir = flag.String("baseDir", "/tmp", "base directory for saving files")
+var scale = flag.Int("scale", 1, "scale factor")
+
+var excludeCols = []string{"date", "day", "hour", "minute", "month", "second", "year", "time"}
 
 func main() {
 
 	flag.Parse()
 
-	maxThreads = runtime.NumCPU()
+	maxThreads = runtime.NumCPU() * *scale
 	runtime.GOMAXPROCS(maxThreads)
 
 	common.Init("cbload", 3000)
@@ -180,6 +183,9 @@ type work struct {
 	cbBucket *couchbase.Bucket
 }
 
+var numQueued int
+var numProcessed int
+
 func processFile(loaderChan chan string, doneChan chan bool) {
 
 	defer close(doneChan)
@@ -252,7 +258,6 @@ func unzipAndLoad(w interface{}) interface{} {
 	}
 	file.Close()
 
-	log.Info(" Number of lines to process %v", len(lines))
 	docs, err := jsonifyFile(lines)
 	if err != nil {
 		log.Error("Failed to jsonify file %v", err)
@@ -274,6 +279,7 @@ func jsonifyFile(rows []string) (map[string]interface{}, error) {
 	var schema []string
 
 	docs := make(map[string]interface{})
+	colOffset := make([]int, 0)
 
 	for i, row := range rows {
 
@@ -285,6 +291,20 @@ func jsonifyFile(rows []string) (map[string]interface{}, error) {
 				return nil, fmt.Errorf("Invalid file format. Failed to parse schema line. Row %s", row)
 			}
 
+			for j, col := range schema {
+				exclude := false
+			innerLoop:
+				for _, ec := range excludeCols {
+					if col == ec {
+						exclude = true
+						break innerLoop
+					}
+				}
+				if exclude == false {
+					colOffset = append(colOffset, j)
+				}
+			}
+
 		} else {
 			// generate a json document from each row
 			var key string
@@ -292,9 +312,12 @@ func jsonifyFile(rows []string) (map[string]interface{}, error) {
 			if len(colData) != len(schema) {
 				log.Warn("Mismatched schema Rows %v Schema %v", colData, schema)
 			}
-			for j, col := range colData {
-				value[schema[j]] = col
+
+			// only jsonify the offsets that not part of the exclude list
+			for _, offset := range colOffset {
+				value[schema[offset]] = colData[offset]
 			}
+
 			// generate a unique for the data
 			if value["timestamp"] == "" || value["pid"] == "" {
 				log.Error("Values not found for timestamp or pid")
