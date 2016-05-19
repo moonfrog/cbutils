@@ -22,8 +22,7 @@ type RedshiftConfig struct {
 }
 
 type CouchbaseConfig struct {
-	Host      string
-	Port      string
+	ServerURL string
 	QueryPort string
 	Bucket    string
 }
@@ -84,8 +83,7 @@ func main() {
 
 	}
 
-	if cbConfig.Host == "" || cbConfig.Port == "" || cbConfig.QueryPort == "" ||
-		cbConfig.Bucket == "" {
+	if cbConfig.ServerURL == "" || cbConfig.Bucket == "" {
 		log.Fatalf("Config error %v", cbConfig)
 	}
 
@@ -135,7 +133,7 @@ func main() {
 	encoded, _ := json.MarshalIndent(row, "", "    ")
 
 	// Store this data into the couchbase node
-	c, err := couchbase.Connect("http://" + cbConfig.Host + ":" + cbConfig.Port + "/")
+	c, err := couchbase.Connect(cbConfig.ServerURL)
 	if err != nil {
 		log.Fatalf("Error connecting:  %v", err)
 	}
