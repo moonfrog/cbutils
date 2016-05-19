@@ -35,6 +35,7 @@ type CouchbaseConfig struct {
 var cbConfig CouchbaseConfig
 var maxThreads int
 var wg sync.WaitGroup
+var downloadWg sync.WaitGroup
 
 type S3Config struct {
 	AwsKey    string
@@ -111,9 +112,14 @@ func main() {
 	}
 
 	for i := 0; i < 2; i++ {
+		downloadWg.Add(1)
 		go downloadFiles(fList[i], s3b, loaderChan)
 	}
 
+	// wait for the download tasks to complete before
+	// closing the loaderChan
+	downloadWg.Wait()
+	close(loaderChan)
 	<-doneChan
 
 }
@@ -138,8 +144,6 @@ func processList(fileList []string) []string {
 	filtered := make([]string, 0)
 	start := time.Now().Add(-time.Duration(*tdiff) * time.Hour).Unix()
 
-	log.Info("Current timestamp %v", start)
-
 	for _, file := range fileList {
 		parts := strings.Split(file, "-")
 		rawTS := strings.Split(parts[2], ".")[0]
@@ -158,6 +162,7 @@ func processList(fileList []string) []string {
 
 // download files from s3 and queue files for loading into cb
 func downloadFiles(fileList []string, bucket *s3.Bucket, loaderChan chan string) {
+	defer downloadWg.Done()
 
 	for _, file := range fileList {
 	retry:
@@ -226,10 +231,15 @@ func processFile(loaderChan chan string, doneChan chan bool) {
 				}()
 
 			}
+
+			numQueued++
+			log.Info("===== Queued %v", numQueued)
+
 		}
 	}
+
+	log.Info("Finished queueing all jobs %v", numFiles)
 	wg.Wait()
-	log.Info("Finished processing all jobs %v", numFiles)
 
 }
 
@@ -240,7 +250,6 @@ func unzipAndLoad(w interface{}) interface{} {
 	filePath := w.(*work).filePath
 	cbBucket := w.(*work).cbBucket
 
-	log.Info("Got work %v", filePath)
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Error("Unable to open file for reading %v", err)
@@ -263,13 +272,13 @@ func unzipAndLoad(w interface{}) interface{} {
 		log.Error("Failed to jsonify file %v", err)
 	}
 
-	log.Info("Number of docs to insert %v", len(docs))
-
 	errs := loadKeys(cbBucket, docs)
 	if errs != nil {
 		log.Error("Failed to load some keys %v", len(errs))
 
 	}
+	numProcessed++
+	log.Info("===== Processed %v", numProcessed)
 	os.Remove(filePath)
 	return nil
 }
