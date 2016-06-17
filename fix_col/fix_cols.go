@@ -232,7 +232,7 @@ func doColumnFix(arg interface{}) interface{} {
 			w.table == "m_table_user" {
 			insertStmt = fmt.Sprintf("insert into %s select %s from %s limit 1", newTable, selectCols, w.table)
 		} else {
-			insertStmt = fmt.Sprintf("insert into %s select %s from %s where len(pid) > 0 and time > '2010-01-01' and time < '2020-01-01'", newTable, selectCols, w.table)
+			insertStmt = fmt.Sprintf("insert into %s select %s from %s where left(%s,4) between 0 and 9999", newTable, selectCols, w.table, w.column)
 		}
 
 		//log.Printf(" insert statement %v", insertStmt)
