@@ -225,7 +225,7 @@ func doColumnFix(arg interface{}) interface{} {
 			}
 		}()
 
-		insertStmt := fmt.Sprintf("insert into %s select %s from %s where where isnumeric(%s)=true and len(%s) < 20 and len(%s) > 0", newTable, selectCols, w.table, w.column, w.column, w.column)
+		insertStmt := fmt.Sprintf("insert into %s select %s from %s where isnumeric(%s)=true and len(%s) < 20 and len(%s) > 0", newTable, selectCols, w.table, w.column, w.column, w.column)
 
 		//log.Printf(" insert statement %v", insertStmt)
 
