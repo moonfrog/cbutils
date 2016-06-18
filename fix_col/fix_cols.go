@@ -31,6 +31,12 @@ type work struct {
 	db     *sql.DB
 }
 
+var grantStmts = `grant insert on table %s to group moonfrog_data_uploader;
+                  grant all on table %s to group moonfrog_report_write;
+                  grant select on table %s to group moonfrog_report_read;
+                  grant select on table %s to group moonfrog_read;
+                  `
+
 func main() {
 	flag.Parse()
 
@@ -95,6 +101,11 @@ func main() {
 		go func(w *work) {
 			wg.Add(1)
 			wp.SendWork(w)
+
+			// run the permission grant queuries
+			grantQuery := fmt.Sprintf(grantStmts, w.table, w.table, w.table, w.table)
+			w.db.Exec(grantQuery)
+
 			log.Printf(" Done table %v", w.table)
 		}(w)
 
