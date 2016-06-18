@@ -104,8 +104,10 @@ func main() {
 
 			// run the permission grant queuries
 			grantQuery := fmt.Sprintf(grantStmts, w.table, w.table, w.table, w.table)
-			w.db.Exec(grantQuery)
-
+			_, err := w.db.Exec(grantQuery)
+			if err != nil {
+				log.Printf("Failed to execute grant query %v Error %v", w.table, err)
+			}
 			log.Printf(" Done table %v", w.table)
 		}(w)
 
@@ -150,6 +152,8 @@ func doColumnFix(arg interface{}) interface{} {
 	var sortKeys string
 
 	var selectCols string
+
+	sortKeyMap := make(map[string]int)
 
 	for rows.Next() {
 		var column string
@@ -209,10 +213,19 @@ func doColumnFix(arg interface{}) interface{} {
 
 		createTable = fmt.Sprintf("%s \r\n %s", createTable, row)
 		if sortKey != 0 {
-			if sortKeys == "" {
-				sortKeys = fmt.Sprintf("SORTKEY (%s", column)
-			} else {
-				sortKeys = fmt.Sprintf("%s, %s", sortKeys, column)
+			sortKeyMap[column] = sortKey
+		}
+	}
+
+	// create the sort key string.
+	for i := 0; i < len(sortKeyMap); i++ {
+		for key, value := range sortKeyMap {
+			if value == i+1 {
+				if sortKeys == "" {
+					sortKeys = fmt.Sprintf("SORTKEY (%s", key)
+				} else {
+					sortKeys = fmt.Sprintf("%s, %s", sortKeys, key)
+				}
 			}
 		}
 	}
@@ -223,7 +236,7 @@ func doColumnFix(arg interface{}) interface{} {
 	newTable := w.table + "_temp"
 
 	createTableQuery := fmt.Sprintf("begin; lock table %v; CREATE table %s %s", w.table, newTable, createTable)
-	//log.Printf(" Create Table Query %v", createTableQuery)
+	log.Printf(" Create Table Query %v", createTableQuery)
 
 	_, err = w.db.Exec(createTableQuery)
 	if err != nil {
