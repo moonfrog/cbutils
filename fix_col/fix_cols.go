@@ -225,15 +225,7 @@ func doColumnFix(arg interface{}) interface{} {
 			}
 		}()
 
-		var insertStmt string
-
-		if w.table == "m_table_apsalar_installs" ||
-			w.table == "m_table_user_staging" ||
-			w.table == "m_table_user" {
-			insertStmt = fmt.Sprintf("insert into %s select %s from %s limit 1", newTable, selectCols, w.table)
-		} else {
-			insertStmt = fmt.Sprintf("insert into %s select %s from %s where (left(%s,6) between 0 and 999999) and (right(%s,6) between 0 and 999999)", newTable, selectCols, w.table, w.column, w.column)
-		}
+		insertStmt := fmt.Sprintf("insert into %s select %s from %s where where isnumeric(%s)=true and len(%s) < 20 and len(%s) > 0", newTable, selectCols, w.table, w.column, w.column, w.column)
 
 		//log.Printf(" insert statement %v", insertStmt)
 
