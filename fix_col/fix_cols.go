@@ -235,12 +235,20 @@ func doColumnFix(arg interface{}) interface{} {
 
 	newTable := w.table + "_temp"
 
+	defer func() {
+		if retErr != nil {
+			w.db.Exec("abort")
+		}
+	}()
+
 	createTableQuery := fmt.Sprintf("begin; lock table %v; CREATE table %s %s", w.table, newTable, createTable)
-	log.Printf(" Create Table Query %v", createTableQuery)
+	//log.Printf(" Create Table Query %v", createTableQuery)
 
 	_, err = w.db.Exec(createTableQuery)
 	if err != nil {
-		log.Fatalf("====== Failed to execute query %v", err)
+		log.Printf("====== Failed to execute query %v err %v", createTableQuery, err)
+		retErr = err
+		return err
 	} else {
 
 		defer func() {
