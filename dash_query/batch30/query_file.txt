@@ -1,0 +1,7 @@
+select phylum as notif_type, count(*) as val from stats where type = "m_table_count_push_notif_send" and kingdom='success' and timestamp > (?)  group by phylum
+select phylum as notif_type, count(*) as val from stats where type= "m_table_count_push_notif_interact" and timestamp > (?) group by phylum
+select installOS as os, phylum as appver, count(*) as val from stats where type = "m_table_count_user_load" and kingdom like "createNewUser%" and game_id=3 and timestamp > (?) group by installOS, phylum
+select installOS as os, phylum as appver, count(*) as val from stats where type = "m_table_count_user_load" and game_id=3 and timestamp > (?) group by installOS, phylum
+select round(sum(round(revenue, -1))) as val, installOS as os, store as store, round(revenue, -1) as txn_size from stats where type="m_table_payment" and game_id=3 and timestamp > (?) group by installOS, store, round(revenue, -1)
+select count(*) as val, installOS as os, store as store, round(revenue, -1) as txn_size from stats where type="m_table_payment" and  game_id=3 and timestamp > (?) group by installOS, store, round(revenue, -1)
+select kingdom as status, count(*) as val from stats where type="m_table_count_reconnect" and timestamp > (?) group by kingdom
