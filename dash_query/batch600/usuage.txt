@@ -1,0 +1,5 @@
+count debug percentile times
+./batch600 -server=http://172.31.8.92:8093/ -type="debug" -queryfile=query_file.txt -diff=60 -threads=4
+
+player load percentile times
+./batch600 -server=http://172.31.8.92:8093/ -type="player" -queryfile="player_load.txt" 

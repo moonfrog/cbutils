@@ -1,0 +1,1 @@
+select duration from stats where type="m_table_open" and event like "player_loaded%" and timestamp > (?) and `game_id\n` = "3\n" and duration < 1000 order by duration;
