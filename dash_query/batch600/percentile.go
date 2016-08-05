@@ -11,7 +11,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -21,8 +20,6 @@ var threads = flag.Int("threads", 1, "number of threads")
 var queryFile = flag.String("queryfile", "query_file.txt", "file containing list of select queries")
 var diff = flag.Int("diff", 600, "time difference")
 var queryType = flag.String("type", "debug", "Query type debug or player")
-
-var wg sync.WaitGroup
 
 func main() {
 
@@ -36,12 +33,9 @@ func main() {
 		log.Fatal(" Unable to read from file %s, Error %v", *queryFile, err)
 	}
 
-	for i := 0; i < *threads; i++ {
-		wg.Add(1)
-		go runQuery(*serverURL, queryLines, i)
+	for _, query := range queryLines {
+		runQuery(*serverURL, query)
 	}
-
-	wg.Wait()
 }
 
 // readLines reads a whole file into memory
@@ -61,7 +55,7 @@ func readLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-func runQuery(server string, queryLines []string, offset int) {
+func runQuery(server string, query string) {
 
 	n1ql, err := sql.Open("n1ql", *serverURL)
 	if err != nil {
@@ -81,66 +75,57 @@ func runQuery(server string, queryLines []string, offset int) {
 	results := make([]interface{}, 0)
 	percentileResults := make(map[string]interface{})
 
-	for i, query := range queryLines {
+	var rows *sql.Rows
 
-		if i != offset {
-			continue
-		}
-
-		var rows *sql.Rows
-
-		startTime := time.Now()
-		log.Printf(" running query %v %v", query, startTime.Unix()-int64(*diff))
-		rows, err = n1ql.Query(query, startTime.Unix()-int64(*diff))
-		if err != nil {
-			log.Fatal("Error Query Line ", err, query, i)
-		}
-
-		defer rows.Close()
-		cols, err := rows.Columns()
-		if err != nil {
-			log.Printf("No columns returned %v", err)
-			break
-		}
-		if cols == nil {
-			log.Printf("No columns returned")
-			break
-		}
-
-		vals := make([]interface{}, len(cols))
-		for i := 0; i < len(cols); i++ {
-			vals[i] = new(interface{})
-		}
-
-		for rows.Next() {
-			row := make(map[string]interface{})
-			err = rows.Scan(vals...)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-			for i := 0; i < len(vals); i++ {
-				row[cols[i]] = returnValue(vals[i].(*interface{}))
-			}
-			results = append(results, row)
-
-		}
-		if rows.Err() != nil {
-			log.Printf("Error sanning rows %v", err)
-		}
-
-		if *queryType == "debug" {
-			percentileResults = handleDebugQuery(results)
-		} else {
-			percentileResults = handlePlayerQuery(results)
-		}
-
-		resultStr, _ := json.MarshalIndent(percentileResults, "", "    ")
-		fmt.Printf("Query %v \n Result %s \n", query, resultStr)
-
+	startTime := time.Now()
+	log.Printf(" running query %v %v", query, startTime.Unix()-int64(*diff))
+	rows, err = n1ql.Query(query, startTime.Unix()-int64(*diff))
+	if err != nil {
+		log.Fatal("Error Query Line ", err, query)
 	}
 
-	wg.Done()
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		log.Printf("No columns returned %v", err)
+		return
+	}
+	if cols == nil {
+		log.Printf("No columns returned")
+		return
+	}
+
+	vals := make([]interface{}, len(cols))
+	for i := 0; i < len(cols); i++ {
+		vals[i] = new(interface{})
+	}
+
+	for rows.Next() {
+		row := make(map[string]interface{})
+		err = rows.Scan(vals...)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		for i := 0; i < len(vals); i++ {
+			row[cols[i]] = returnValue(vals[i].(*interface{}))
+		}
+		results = append(results, row)
+
+	}
+	if rows.Err() != nil {
+		log.Printf("Error sanning rows %v", err)
+	}
+
+	if *queryType == "debug" {
+		percentileResults = handleDebugQuery(results)
+	} else {
+		percentileResults = handlePlayerQuery(results)
+	}
+
+	resultStr, _ := json.MarshalIndent(percentileResults, "", "    ")
+	fmt.Printf("Query %v \n Result %s \n", query, resultStr)
+
 }
 
 func percentileN(numbers []float64, l, n int) float64 {
@@ -153,15 +138,29 @@ func percentileN(numbers []float64, l, n int) float64 {
 func handleDebugQuery(results []interface{}) map[string]interface{} {
 	currentSubType := 1
 	numbers := make([]float64, 0)
-	percentileResults := make(map[string]interface{})
 	var metric string
+	var currentMetric string
+
+	metricMap := make(map[string]interface{})
+	percentileResults := make(map[string]interface{})
 
 	for _, row := range results {
-		/*		log.Printf(" Row %v %v %v", row.(map[string]interface{})["subtype"], row.(map[string]interface{})["metric"],
-				row.(map[string]interface{})["timeMsec"]) */
-		if metric == "" {
-			metric = row.(map[string]interface{})["metric"].(string)
+		/*
+			log.Printf(" Row %v %v %v", row.(map[string]interface{})["subtype"], row.(map[string]interface{})["metric"],
+				row.(map[string]interface{})["timeMsec"])
+		*/
+
+		metric = row.(map[string]interface{})["metric"].(string)
+		if currentMetric == "" {
+			metricMap[metric] = percentileResults
+			currentMetric = metric
+		} else if currentMetric != metric {
+			// roll over
+			percentileResults = make(map[string]interface{})
+			metricMap[metric] = percentileResults
+			currentMetric = metric
 		}
+
 		st, _ := strconv.ParseInt(row.(map[string]interface{})["subtype"].(string), 10, 64)
 		subType := int(st)
 		if subType != currentSubType {
@@ -191,7 +190,7 @@ func handleDebugQuery(results []interface{}) map[string]interface{} {
 
 	}
 
-	return map[string]interface{}{metric: percentileResults}
+	return metricMap
 }
 
 // calculate 50, 80 and 90th percentile
