@@ -19,6 +19,7 @@ var serverURL = flag.String("server", "http://localhost:8093",
 var threads = flag.Int("threads", 10, "number of threads")
 var queryFile = flag.String("queryfile", "query_file.txt", "file containing list of select queries")
 var diff = flag.Int("diff", 100, "time difference")
+var lag = flag.Int("lag", 60, "time lag in seconds")
 
 var wg sync.WaitGroup
 
@@ -87,7 +88,7 @@ func runQuery(server string, queryLines []string, offset int) {
 		var rows *sql.Rows
 
 		startTime := time.Now()
-		rows, err = n1ql.Query(query, startTime.Unix()-int64(*diff))
+		rows, err = n1ql.Query(query, startTime.Unix()-int64(*diff)-int64(*lag), startTime.Unix()-int64(*lag))
 		if err != nil {
 			log.Fatal("Error Query Line ", err, query, i)
 		}

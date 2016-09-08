@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"flag"
 	_ "github.com/couchbase/go_n1ql"
-	"log"
 	"os"
 	"runtime"
 	"sync"
 	"time"
+
+	log "github.com/moonfrog/badger/logger"
 )
 
 var serverURL = flag.String("server", "http://localhost:8093",
@@ -28,6 +29,7 @@ const (
 func main() {
 
 	flag.Parse()
+	log.SetLogFile("deleteItems")
 
 	runtime.GOMAXPROCS(2)
 	doneChan := make(chan bool)
@@ -51,7 +53,7 @@ func main() {
 func runQuery(query string, doneChan chan bool) {
 	defer wg.Done()
 
-	log.Printf("Starting query thread")
+	log.Info("Starting query thread")
 	ok := true
 	for ok == true {
 
@@ -86,21 +88,21 @@ func executeQuery(query string) {
 	endTime := time.Now().Unix() - int64((*diff)*60)
 	startTime := endTime - 60
 
-	log.Printf("Executing query %v %v %v", query, startTime, endTime)
+	log.Info("Executing query %v %v %v", query, startTime, endTime)
 
 	result, err := n1ql.Exec(query, startTime, endTime)
 
-	queryTime := time.Now().Unix() - (startTime + (int64(*diff) * 60))
+	queryTime := time.Now().Unix() - (endTime + (int64(*diff) * 60))
 
 	if err != nil {
-		log.Printf(" Failed to execute query. Error %v", err)
+		log.Error(" Failed to execute query. Error %v", err)
 	} else {
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("Rows Deleted %d queryTime %v", rowsAffected, queryTime)
+		log.Info("Rows Deleted %d queryTime %v", rowsAffected, queryTime)
 	}
 
 }
